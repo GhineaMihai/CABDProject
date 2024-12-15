@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Viewer</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .btn {
+            padding: 10px 15px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 20px;
+            width: 50%;
+            border-radius: 5px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Database Table Viewer</h1>
+
+    <!-- Table buttons -->
+    <div>
+        {% for table in table_names %}
+            <form method="POST" action="/">
+                <button type="submit" name="table" value="{{ table }}" class="btn">{{ table }}</button>
+            </form>
+        {% endfor %}
+    </div>
+
+    <!-- Display the selected table data -->
+    {% if selected_table %}
+        <h2>Showing Data for: {{ selected_table }}</h2>
+
+        <!-- Show "Insert" button only for tables not containing "_History" -->
+        {% if '_History' not in selected_table %}
+            <button class="btn" id="insertBtn">Insert</button>
+        {% endif %}
+
+        {% if table_data.rows %}
+            <table>
+                <thead>
+                    <tr>
+                        {% for column in table_data.columns %}
+                            <th>{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in table_data.rows %}
+                        <tr>
+                            {% for cell in row %}
+                                <td>{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No data available for this table.</p>
+        {% endif %}
+
+        <!-- Modal Form for Insertion -->
+        <div id="myModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Insert Data into {{ selected_table }}</h3>
+                <form id="insertForm" method="POST" action="/insert">
+                    <input type="hidden" name="table" value="{{ selected_table }}">
+
+                    <!-- Loop through the columns and create input fields -->
+                    {% for column in table_data.columns %}
+                        <label for="{{ column }}">{{ column }}:</label>
+                        <input type="text" id="{{ column }}" name="{{ column }}" required><br><br>
+                    {% endfor %}
+                    
+                    <button type="submit" class="btn">Submit</button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <p>Select a table to view its data.</p>
+    {% endif %}
+
+    <script>
+        // Get the modal
+        var modal = document.getElementById("myModal");
+
+        // Get the button that opens the modal
+        var btn = document.getElementById("insertBtn");
+
+        // Get the <span> element that closes the modal
+        var span = document.getElementsByClassName("close")[0];
+
+        // When the user clicks the button, open the modal
+        btn.onclick = function() {
+            modal.style.display = "block";
+        }
+
+        // When the user clicks on <span> (x), close the modal
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        // When the user clicks anywhere outside of the modal, close it
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
