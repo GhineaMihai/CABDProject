@@ -30,6 +30,12 @@
         .btn:hover {
             background-color: #45a049;
         }
+        .btn-delete {
+            background-color: red;
+        }
+        .btn-delete:hover {
+            background-color: darkred;
+        }
         .modal {
             display: none;
             position: fixed;
@@ -66,9 +72,50 @@
             flex-wrap: wrap; /* Allow wrapping if there's not enough space */
             gap: 10px; /* Add some space between buttons */
         }
+
+        /* Flash message styles */
+        .flash-message {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .flash-message.success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .flash-message.error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        /* Styles for search bar */
+        .search-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 20px;
+        }
+
+        .search-container input[type="text"] {
+            padding: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
     <h1>Database Table Viewer</h1>
 
     <!-- Table buttons in a row -->
@@ -78,6 +125,18 @@
                 <button type="submit" name="table" value="{{ table }}" class="btn">{{ table }}</button>
             </form>
         {% endfor %}
+
+        <!-- Search Bar -->
+        {% if selected_table %}
+            <div class="search-container">
+                <form method="POST" action="/search">
+                    <label for="id_value">Search by ID:</label>
+                    <input type="text" id="id_value" name="id_value" required>
+                    <input type="hidden" name="selected_table" value="{{ selected_table }}">  <!-- Hidden field for selected table -->
+                    <button type="submit" class="btn">Search</button>
+                </form>
+            </div>
+        {% endif %}
     </div>
 
     <!-- Display the selected table data -->
@@ -96,6 +155,10 @@
                         {% for column in table_data.columns %}
                             <th>{{ column }}</th>
                         {% endfor %}
+                        <!-- Add an extra column for the delete button -->
+                        {% if '_History' not in selected_table %}
+                            <th>Action</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -104,12 +167,50 @@
                             {% for cell in row %}
                                 <td>{{ cell }}</td>
                             {% endfor %}
+                            <!-- Only show the action buttons if it's not a History table -->
+                            {% if '_History' not in selected_table %}
+                                <td>
+                                    <!-- Delete Button -->
+                                    <form method="POST" action="/delete" style="display:inline;">
+                                        <input type="hidden" name="table" value="{{ selected_table }}">
+                                        <input type="hidden" name="row_name" value="{{ table_data.columns[0] }}">
+                                        <input type="hidden" name="row_id" value="{{ row[0] }}">
+                                        <button class="btn btn-delete" type="submit">Delete</button>
+                                    </form>
+                                    <!-- Update Button -->
+                                    <button 
+                                        class="btn btn-update" 
+                                        onclick='openUpdateModal("{{ selected_table }}", {{ row | tojson }}, {{ table_data.columns | tojson }})'>
+                                        Update
+                                    </button>
+                                </td>
+                            {% endif %}
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
         {% else %}
             <p>No data available for this table.</p>
+        {% endif %}
+
+        {% if search_result %}
+            <h3>Search Result for ID {{ request.form['id_value'] }}:</h3>
+            <table>
+                <thead>
+                    <tr>
+                        {% for column in table_data.columns %}
+                            <th>{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        {% for cell in search_result %}
+                            <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
         {% endif %}
 
         <!-- Modal Form for Insertion -->
@@ -130,34 +231,80 @@
                 </form>
             </div>
         </div>
+
+        <!-- Update Modal -->
+        <div id="updateModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeUpdateModal()">&times;</span>
+                <h3>Update Row in {{ selected_table }}</h3>
+                <form id="updateForm" method="POST" action="/update">
+                    <input type="hidden" name="table" id="updateTable">
+                    <input type="hidden" name="row_name" id="updateRowName">
+                    <input type="hidden" name="row_id" id="updateRowId">
+
+                    <!-- Input fields dynamically added via JavaScript -->
+                    <div id="updateFields"></div>
+
+                    <button type="submit" class="btn">Submit</button>
+                </form>
+            </div>
+        </div>
     {% else %}
         <p>Select a table to view its data.</p>
     {% endif %}
 
     <script>
-        // Get the modal
+        // JavaScript for opening and closing modals
         var modal = document.getElementById("myModal");
-
-        // Get the button that opens the modal
         var btn = document.getElementById("insertBtn");
-
-        // Get the <span> element that closes the modal
         var span = document.getElementsByClassName("close")[0];
 
-        // When the user clicks the button, open the modal
-        btn.onclick = function() {
-            modal.style.display = "block";
+        if (btn) {
+            btn.onclick = function() {
+                modal.style.display = "block";
+            }
         }
 
-        // When the user clicks on <span> (x), close the modal
-        span.onclick = function() {
-            modal.style.display = "none";
+        if (span) {
+            span.onclick = function() {
+                modal.style.display = "none";
+            }
         }
 
-        // When the user clicks anywhere outside of the modal, close it
         window.onclick = function(event) {
             if (event.target == modal) {
                 modal.style.display = "none";
+            }
+        }
+
+        // Update Modal JS
+        var updateModal = document.getElementById("updateModal");
+
+        function openUpdateModal(table, rowData, columnNames) {
+            updateModal.style.display = "block";
+            document.getElementById("updateTable").value = table;
+            document.getElementById("updateRowName").value = columnNames[0];
+            document.getElementById("updateRowId").value = rowData[0];
+
+            const updateFieldsDiv = document.getElementById("updateFields");
+            updateFieldsDiv.innerHTML = "";
+
+            for (let i = 0; i < columnNames.length; i++) {
+                updateFieldsDiv.innerHTML += `
+                    <label for="update_${columnNames[i]}">${columnNames[i]}:</label>
+                    <input type="text" id="update_${columnNames[i]}" name="update_${columnNames[i]}" value="" required>
+                    <br><br>
+                `;
+            }
+        }
+
+        function closeUpdateModal() {
+            updateModal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == updateModal) {
+                updateModal.style.display = "none";
             }
         }
     </script>
