@@ -110,8 +110,9 @@ WHERE
     project_id = {project_id} AND ACTION <> 'DELETE'
 ORDER BY 
     transaction_start""")
-    for row in cursor:
-        print(row)
+    rows = cursor.fetchall()  # Get all rows from the table
+    columns = [desc[0] for desc in cursor.description]  # Get column names
+    return {'columns': columns, 'rows': rows}
 
 def getStateAtMoment (time_moment):
     cursor.execute(f"""SELECT employee_id, name, position, action, transaction_start, transaction_end FROM Employees_History
@@ -379,6 +380,43 @@ def state_emp():
             flash(f"An error occurred: {e}", 'error')
 
     return redirect(url_for('home'))
+
+@app.route('/budget_diff', methods=['POST'])
+def budget_diff():
+    project_id = request.form.get('budget_diff_project_id')
+
+    if not project_id.isdigit():  # Ensure the input is numeric
+        flash('Please enter a valid numeric ID.')
+        return redirect(request.referrer)
+
+    selected_table = request.form.get('selected_table')
+    if not selected_table:
+        flash('No table selected.')
+        return redirect(request.referrer)
+
+    table_names = [
+        "Employees",
+        "Employees_History",
+        "Projects",
+        "Projects_History",
+        "Assignments",
+        "Assignments_History"
+    ]
+
+    # Define the action based on the project_id
+    if selected_table == 'Projects_History':
+        try:
+            # Fetch data using the provided function
+            table_data = GetBugetDifferenceForProjects(project_id)
+            if table_data['rows']:
+                return render_template('index.html', selected_table=selected_table, table_data=table_data,
+                                       table_names=table_names)
+            else:
+                flash(f'No results found for Project ID {project_id}.', 'warning')
+        except Exception as e:
+            flash(f"An error occurred: {e}", 'error')
+
+        return redirect(url_for('home'))
 
 
 def perform_action_on_projects_history(action_value):

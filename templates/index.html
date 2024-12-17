@@ -141,12 +141,22 @@
         {% if selected_table == 'Projects_History' %}
         <div class="search-container">
             <form method="POST" action="/top_budget">
-                <label for="project_id">Date:</label>
+                <label for="project_id">Top budget (for ID):</label>
                 <input type="text" id="project_id" name="project_id" required>
                 <input type="hidden" name="selected_table" value="{{ selected_table }}">
                 <button type="submit" class="btn">Search</button>
             </form>
         </div>
+
+        <div class="search-container">
+            <form method="POST" action="/budget_diff">
+                <label for="budget_diff_project_id">Budget difference (for ID):</label>
+                <input type="text" id="budget_diff_project_id" name="budget_diff_project_id" required>
+                <input type="hidden" name="selected_table" value="{{ selected_table }}">
+                <button type="submit" class="btn">Search</button>
+            </form>
+        </div>
+
         {% endif %}
 
         {% if selected_table == 'Employees_History' %}
