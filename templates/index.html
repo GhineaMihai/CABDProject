@@ -137,6 +137,17 @@
                 </form>
             </div>
         {% endif %}
+        <!-- Search Bar for Projects_History -->
+        {% if selected_table == 'Projects_History' %}
+        <div class="search-container">
+            <form method="POST" action="/top_budget">
+                <label for="project_id">Top budget for projectId:</label>
+                <input type="text" id="project_id" name="project_id" required>
+                <input type="hidden" name="selected_table" value="{{ selected_table }}">
+                <button type="submit" class="btn">Search</button>
+            </form>
+        </div>
+{% endif %}
     </div>
 
     <!-- Display the selected table data -->
@@ -178,8 +189,8 @@
                                         <button class="btn btn-delete" type="submit">Delete</button>
                                     </form>
                                     <!-- Update Button -->
-                                    <button 
-                                        class="btn btn-update" 
+                                    <button
+                                        class="btn btn-update"
                                         onclick='openUpdateModal("{{ selected_table }}", {{ row | tojson }}, {{ table_data.columns | tojson }})'>
                                         Update
                                     </button>
@@ -226,7 +237,7 @@
                         <label for="{{ column }}">{{ column }}:</label>
                         <input type="text" id="{{ column }}" name="{{ column }}" required><br><br>
                     {% endfor %}
-                    
+
                     <button type="submit" class="btn">Submit</button>
                 </form>
             </div>

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 import cx_Oracle
 from datetime import datetime
 
@@ -29,12 +29,17 @@ def SelectRowFromTable(table, id_column, id_value):
     columns = [col[0] for col in cursor.description]  # Get column names
     return {"columns": columns, "rows": rows}
 
+
+
 def InsertIntoTable(table, table_fields, table_values):
     table_fields_string = ", ".join(table_fields)  # Join field names
-    table_values_string = ", ".join([f"'{value}'" for value in table_values])  # Join values and quote them
-
+    table_values_string=""
+    for i in range(len(table_values)):
+        table_values_string += f"{table_values[i]}, "
+    table_values_string = table_values_string[:-2]
     # Create the insert command
     command = f"INSERT INTO {table} ({table_fields_string}) VALUES ({table_values_string})"
+    print(command)
     cursor.execute(command)
     connection.commit()
 
@@ -84,8 +89,18 @@ def GetTopBugetForProject(project_id):
         Where b.project_id = {project_id}
         ORDER BY  b.perioada DESC
         FETCH FIRST 1 ROW ONLY""")
-    for row in cursor:
-        print(row)
+    # for row in cursor:
+    #     print(row)
+    rows = cursor.fetchall()  # Get all rows from the table
+    columns = [desc[0] for desc in cursor.description]  # Get column names
+    return {'columns': columns, 'rows': rows}
+
+# def SelectBudgetRowFromTable(table, id_column, id_value):
+#     command = f'SELECT * FROM {table} WHERE {id_column} = {id_value}'
+#     cursor.execute(command)
+#     rows = cursor.fetchall()
+#     columns = [col[0] for col in cursor.description]  # Get column names
+#     return {"columns": columns, "rows": rows}
 
 def GetBugetDifferenceForProjects(project_id):
     cursor.execute(f"""SELECT 
@@ -146,12 +161,28 @@ def insert():
     # Collect the column names (fields)
     for column in request.form:
         if column != 'table':  # Exclude the 'table' hidden field
-            table_fields.append(column)
-            table_values.append(request.form[column])  # Collect the value for each column
+            value = request.form[column]
+            value = value.strip()  # Clean leading/trailing whitespace
+
+            # Handle TO_DATE values (date-time values)
+            if value and len(value) == 19 and value[4] == '-' and value[7] == '-' and value[10] == ' ' and value[
+                13] == ':' and value[16] == ':':
+                formatted_value = f"TO_DATE('{value}', 'YYYY-MM-DD HH24:MI:SS')"
+                table_values.append(formatted_value)  # Add TO_DATE directly
+            # Handle integers
+            elif value.isdigit():
+                table_values.append(value)  # Append as-is for integers
+            # Handle other strings (wrap in single quotes)
+            else:
+                table_values.append(f"'{value}'")  # Add single quotes for strings
+
+            table_fields.append(column)  # Add field name
+
+    print("Fields:", table_fields)
+    print("Values:", table_values)
 
     # Call InsertIntoTable method with the collected data
     InsertIntoTable(table, table_fields, table_values)
-
     return redirect(url_for('home'))  # Redirect to home page after insert
 
 @app.route('/delete', methods=['POST'])
@@ -201,7 +232,7 @@ def update():
             else:
                 # Otherwise, treat as a regular string
                 update_values.append(f"'{value}'")
-
+    print(update_values)
     try:
         # Call the UpdateRow method to update the database
         UpdateRow(table, update_fields, update_values, row_name, row_id)
@@ -285,6 +316,54 @@ def home():
 
     return render_template('index.html', table_names=table_names, table_data=table_data, selected_table=selected_table)
 
+@app.route('/top_budget', methods=['POST'])
+def top_budget():
+    project_id = request.form.get('project_id')
+
+    if not project_id.isdigit():  # Ensure the input is numeric
+        flash('Please enter a valid numeric ID.')
+        return redirect(request.referrer)
+
+
+    selected_table = request.form.get('selected_table')
+    if not selected_table:
+        flash('No table selected.')
+        return redirect(request.referrer)
+
+    table_names = [
+        "Employees",
+        "Employees_History",
+        "Projects",
+        "Projects_History",
+        "Assignments",
+        "Assignments_History"
+    ]
+
+    # Define the action based on the project_id
+    if selected_table == 'Projects_History':
+        try:
+            # Fetch data using the provided function
+            table_data = GetTopBugetForProject(project_id)
+            if table_data['rows']:
+                return render_template('index.html', selected_table=selected_table, table_data=table_data,table_names=table_names)
+            else:
+                flash(f'No results found for Project ID {project_id}.', 'warning')
+        except Exception as e:
+            flash(f"An error occurred: {e}", 'error')
+
+        return redirect(url_for('home'))
+
+
+def perform_action_on_projects_history(action_value):
+    # Your custom logic to perform action based on the action_value
+    # For example, you might want to query something or update rows
+    cursor.execute(f"SELECT * FROM Projects_History WHERE ACTION = '{action_value}'")
+    rows = cursor.fetchall()
+
+    if rows:
+        return f"Found {len(rows)} records for action '{action_value}'"
+    else:
+        return f"No records found for action '{action_value}'"
 
 if __name__ == '__main__':
     app.run(debug=True)
