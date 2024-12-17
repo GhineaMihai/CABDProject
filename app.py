@@ -14,6 +14,25 @@ cx_Oracle.clientversion()
 connection_string = f'{username}/{password}@{hostname}:{port}/{sid}'
 connection = cx_Oracle.connect(connection_string)
 
+id_columns = {
+    'employees': 'EMPLOYEE_ID',
+    'projects': 'PROJECT_ID',
+    'assignments': 'ASSIGNMENT_ID',
+    'employees_history': 'EMPLOYEE_ID',
+    'projects_history': 'PROJECT_ID',
+    'assignments_history': 'ASSIGNMENT_ID'
+}
+
+# List of tables for buttons
+table_names = [
+    "Employees",
+    "Employees_History",
+    "Projects",
+    "Projects_History",
+    "Assignments",
+    "Assignments_History"
+]
+
 cursor = connection.cursor()
 
 def SelectFromTable (table, cursor):
@@ -123,13 +142,15 @@ ORDER BY employee_id""")
     return {'columns': columns, 'rows': rows}
 
 def format_date(value):
-    # Check if the value is in the format 'YYYY-MM-DD HH:MM:SS'
+    # Ensure the date format is exactly 'YYYY-MM-DD' and return in TO_DATE format
     try:
-        # Try parsing the value into a datetime object with the format 'YYYY-MM-DD HH:MI:SS'
-        datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-        return f"TO_DATE('{value}', 'YYYY-MM-DD HH24:MI:SS')"  # Format for Oracle
+        # Validate and reformat the date to match 'YYYY-MM-DD' format
+        formatted_value = datetime.strptime(value, '%Y-%m-%d').strftime('%Y-%m-%d')
+        return f"TO_DATE('{formatted_value}', 'YYYY-MM-DD')"
     except ValueError:
-        return value  # If not a valid date, return the value as is
+        raise ValueError(f"Invalid date format: {value}. Expected format is YYYY-MM-DD.")
+
+
 
 def fetch_table_data(table):
     cursor.execute(f'SELECT * FROM {table}')
@@ -159,11 +180,18 @@ def insert():
             value = request.form[column]
             value = value.strip()  # Clean leading/trailing whitespace
 
+            # Check if the field is a date field (fields prefixed with 'date_')
+            if 'time' in column.lower():
+                value = value.strip()  # Ensure no extra spaces
+                if value:  # If the value is not empty, format it
+                    formatted_value = f"TO_DATE('{value}', 'YYYY-MM-DD')"
+                    table_values.append(formatted_value)  # Add TO_DATE directly for date fields
+                else:
+                    table_values.append('NULL')  # If no value, append NULL for date fields
             # Handle TO_DATE values (date-time values)
-            if value and len(value) == 19 and value[4] == '-' and value[7] == '-' and value[10] == ' ' and value[
-                13] == ':' and value[16] == ':':
+            elif value and len(value) == 19 and value[4] == '-' and value[7] == '-' and value[10] == ' ' and value[13] == ':' and value[16] == ':':
                 formatted_value = f"TO_DATE('{value}', 'YYYY-MM-DD HH24:MI:SS')"
-                table_values.append(formatted_value)  # Add TO_DATE directly
+                table_values.append(formatted_value)  # Add TO_DATE directly for datetime
             # Handle integers
             elif value.isdigit():
                 table_values.append(value)  # Append as-is for integers
@@ -171,10 +199,10 @@ def insert():
             else:
                 table_values.append(f"'{value}'")  # Add single quotes for strings
 
-            table_fields.append(column)  # Add field name
+            table_fields.append(column.replace('date_', '').replace('text_', ''))  # Add field name, removing prefix
 
-    print("Fields:", table_fields)
-    print("Values:", table_values)
+    print("Table Fields:", table_fields)
+    print("Table Values:", table_values)
 
     # Call InsertIntoTable method with the collected data
     InsertIntoTable(table, table_fields, table_values)
@@ -197,37 +225,15 @@ def delete():
 
 
 @app.route('/update', methods=['POST'])
+
 def update():
     table = request.form['table']
     row_name = request.form['row_name']
     row_id = request.form['row_id']
 
-    update_fields = []
-    update_values = []
+    # Extract update fields and values
+    update_fields, update_values = extract_update_fields_and_values(request.form)
 
-    # Loop through the form fields that start with 'update_' and extract them
-    for key, value in request.form.items():
-        if key.startswith('update_'):  # All update fields are prefixed with 'update_'
-            field_name = key.replace('update_', '')  # Extract field name
-            update_fields.append(field_name)
-
-            # Remove extra quotes from values if they exist
-            value = value.replace("'", "")
-
-            # If the value is a date, format it before appending
-            if value and len(value) == 19 and value[4] == '-' and value[7] == '-' and value[10] == ' ' and value[
-                13] == ':' and value[16] == ':':
-                value = format_date(value)
-                update_values.append(value)
-
-            # If value is a number, convert it to an integer
-            elif value.isdigit():
-                update_values.append(int(value))
-                continue
-            else:
-                # Otherwise, treat as a regular string
-                update_values.append(f"'{value}'")
-    print(update_values)
     try:
         # Call the UpdateRow method to update the database
         UpdateRow(table, update_fields, update_values, row_name, row_id)
@@ -238,38 +244,88 @@ def update():
     return redirect(url_for('home'))
 
 
+def extract_update_fields_and_values(form_data):
+    update_fields = []
+    update_values = []
+
+    # Loop through the form fields that start with 'update_'
+    for key, value in form_data.items():
+        if key.startswith('update_'):
+            field_name = key.replace('update_', '')  # Extract field name
+            update_fields.append(field_name)
+
+            # Clean up value: Remove extra quotes
+            value = value.strip().replace("'", "")
+
+            # Process value based on type (date, timestamp, integer, or string)
+            processed_value = process_value(value, field_name)
+            update_values.append(processed_value)
+
+    return update_fields, update_values
+
+
+def process_value(value, field_name):
+    # Check if it's a valid timestamp
+    if is_valid_timestamp(value):
+        return format_timestamp(value)
+    # Check if it's a valid date (use "date" if your date fields are passed like that in the form)
+    elif is_valid_date(value, field_name):
+        return format_date(value)
+    # If the value is numeric, convert it to an integer
+    elif value.isdigit():
+        return int(value)
+    else:
+        # Otherwise, treat it as a string and wrap in single quotes
+        return f"'{value}'"
+
+
+def format_timestamp(value):
+    # Ensure the timestamp format is exactly 'YYYY-MM-DD HH:MM:SS' and return in TO_TIMESTAMP format
+    try:
+        # Validate and reformat the timestamp to match 'YYYY-MM-DD HH:MM:SS' format
+        formatted_value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
+        return f"TO_DATE('{formatted_value}', 'YYYY-MM-DD')"
+    except ValueError:
+        raise ValueError(f"Invalid timestamp format: {value}. Expected format is YYYY-MM-DD HH:MM:SS.")
+
+
+def is_valid_date(value, field_name):
+    # Check if the value matches a valid date format (YYYY-MM-DD)
+    # You can modify this check to use a more complex field-based validation if needed
+    if 'date' in field_name.lower():
+        try:
+            datetime.strptime(value, '%Y-%m-%d')
+            return True
+        except ValueError:
+            return False
+    return False
+
+
+def is_valid_timestamp(value):
+    # Check if the value matches a timestamp format (YYYY-MM-DD HH:MM:SS)
+    try:
+        datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+        return True
+    except ValueError:
+        return False
+
 @app.route('/search', methods=['POST'])
 def search():
     id_value = request.form.get('id_value')
-
-    if not id_value.isdigit():  # Ensure the input is numeric
-        flash('Please enter a valid numeric ID.')
-        return redirect(request.referrer)
 
     selected_table = request.form.get('selected_table')  # The selected table name
     if not selected_table:
         flash('No table selected.')
         return redirect(request.referrer)
 
-    # Define ID columns for each table
-    id_columns = {
-        'employees': 'EMPLOYEE_ID',
-        'projects': 'PROJECT_ID',
-        'assignments': 'ASSIGNMENT_ID',
-        'employees_history': 'EMPLOYEE_ID',
-        'projects_history': 'PROJECT_ID',
-        'assignments_history': 'ASSIGNMENT_ID'
-    }
+    if not id_value.isdigit():  # Ensure the input is numeric
+        flash('Please enter a valid numeric ID.')
+        return redirect(request.referrer)
+        #return render_template('index.html', selected_table="selected_table", table_data="", table_names=table_names)
 
-    # List of tables for buttons
-    table_names = [
-        "Employees",
-        "Employees_History",
-        "Projects",
-        "Projects_History",
-        "Assignments",
-        "Assignments_History"
-    ]
+
+    # Define ID columns for each table
+
 
     # Get the correct ID column based on the table
     id_column = id_columns.get(selected_table.lower())

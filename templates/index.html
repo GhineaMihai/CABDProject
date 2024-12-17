@@ -255,11 +255,21 @@
                 <form id="insertForm" method="POST" action="/insert">
                     <input type="hidden" name="table" value="{{ selected_table }}">
 
-                    <!-- Loop through the columns and create input fields -->
                     {% for column in table_data.columns %}
-                        <label for="{{ column }}">{{ column }}:</label>
-                        <input type="text" id="{{ column }}" name="{{ column }}" required><br><br>
+                        {% if 'time' in column.lower() %}
+                            <label for="date_{{ column }}">{{ column }}:</label>+
+                            <input type="date" id="date_{{ column }}" name="date_{{ column }}" required><br><br>
+                        {% else %}
+                            <label for="text_{{ column }}">{{ column }}:</label>
+                            <input type="text" id="text_{{ column }}" name="text_{{ column }}" required><br><br>
+                        {% endif %}
                     {% endfor %}
+                    <!-- Loop through the columns and create input fields -->
+<!--                    {% for column in table_data.columns %}-->
+<!--                        <label for="{{ column }}">{{ column }}:</label>-->
+<!--                        <input type="text" id="{{ column }}" name="{{ column }}" required><br><br>-->
+<!--                    {% endfor %}-->
+
 
                     <button type="submit" class="btn">Submit</button>
                 </form>
@@ -323,13 +333,23 @@
             const updateFieldsDiv = document.getElementById("updateFields");
             updateFieldsDiv.innerHTML = "";
 
-            for (let i = 0; i < columnNames.length; i++) {
+        for (let i = 0; i < columnNames.length; i++) {
+            // Check if the column name contains "time" to display a date picker
+            if (columnNames[i].toLowerCase().includes("time")) {
+                updateFieldsDiv.innerHTML += `
+                    <label for="update_${columnNames[i]}">${columnNames[i]}:</label>
+                    <input type="date" id="update_${columnNames[i]}" name="update_${columnNames[i]}" value="" required>
+                    <br><br>
+                `;
+            } else {
+            // For other columns, use a text input
                 updateFieldsDiv.innerHTML += `
                     <label for="update_${columnNames[i]}">${columnNames[i]}:</label>
                     <input type="text" id="update_${columnNames[i]}" name="update_${columnNames[i]}" value="" required>
                     <br><br>
-                `;
-            }
+                 `;
+    }
+}
         }
 
         function closeUpdateModal() {
