@@ -95,13 +95,6 @@ def GetTopBugetForProject(project_id):
     columns = [desc[0] for desc in cursor.description]  # Get column names
     return {'columns': columns, 'rows': rows}
 
-# def SelectBudgetRowFromTable(table, id_column, id_value):
-#     command = f'SELECT * FROM {table} WHERE {id_column} = {id_value}'
-#     cursor.execute(command)
-#     rows = cursor.fetchall()
-#     columns = [col[0] for col in cursor.description]  # Get column names
-#     return {"columns": columns, "rows": rows}
-
 def GetBugetDifferenceForProjects(project_id):
     cursor.execute(f"""SELECT 
     project_id,
@@ -124,8 +117,9 @@ def getStateAtMoment (time_moment):
     cursor.execute(f"""SELECT employee_id, name, position, action, transaction_start, transaction_end FROM Employees_History
 Where Transaction_Start <= TO_DATE('{time_moment}', 'YYYY-MM-DD') AND (Transaction_End >= TO_DATE('{time_moment}', 'YYYY-MM-DD') OR Transaction_End IS NULL)
 ORDER BY employee_id""")
-    for row in cursor:
-        print(row)
+    rows = cursor.fetchall()  # Get all rows from the table
+    columns = [desc[0] for desc in cursor.description]  # Get column names
+    return {'columns': columns, 'rows': rows}
 
 def format_date(value):
     # Check if the value is in the format 'YYYY-MM-DD HH:MM:SS'
@@ -352,6 +346,39 @@ def top_budget():
             flash(f"An error occurred: {e}", 'error')
 
         return redirect(url_for('home'))
+
+@app.route('/state_emp', methods=['POST'])
+def state_emp():
+    emp_date = request.form['emp_date']  # '2024-07-01'
+    print("Start Date:", emp_date)
+
+    selected_table = request.form.get('selected_table')
+    if not selected_table:
+        flash('No table selected.')
+        return redirect(request.referrer)
+
+    table_names = [
+        "Employees",
+        "Employees_History",
+        "Projects",
+        "Projects_History",
+        "Assignments",
+        "Assignments_History"
+    ]
+
+    # Define the action based on the date
+    if selected_table == 'Employees_History':
+        try:
+            # Fetch data using the provided function
+            table_data = getStateAtMoment(emp_date)
+            if table_data['rows']:
+                return render_template('index.html', selected_table=selected_table, table_data=table_data,table_names=table_names)
+            else:
+                flash(f'No results found for date {emp_date}.', 'warning')
+        except Exception as e:
+            flash(f"An error occurred: {e}", 'error')
+
+    return redirect(url_for('home'))
 
 
 def perform_action_on_projects_history(action_value):

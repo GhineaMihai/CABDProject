@@ -141,13 +141,26 @@
         {% if selected_table == 'Projects_History' %}
         <div class="search-container">
             <form method="POST" action="/top_budget">
-                <label for="project_id">Top budget for projectId:</label>
+                <label for="project_id">Date:</label>
                 <input type="text" id="project_id" name="project_id" required>
                 <input type="hidden" name="selected_table" value="{{ selected_table }}">
                 <button type="submit" class="btn">Search</button>
             </form>
         </div>
-{% endif %}
+        {% endif %}
+
+        {% if selected_table == 'Employees_History' %}
+        <div class="search-container">
+            <form method="POST" action="/state_emp">
+                <label for="emp_date">Select Date:</label>
+                <input type="date" id="emp_date" name="emp_date" required>
+                <input type="hidden" name="selected_table" value="{{ selected_table }}">
+            <button type="submit" class="btn">Search</button>
+            </form>
+        </div>
+
+        {% endif %}
+
     </div>
 
     <!-- Display the selected table data -->
