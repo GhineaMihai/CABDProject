@@ -257,6 +257,7 @@ def extract_update_fields_and_values(form_data):
             # Clean up value: Remove extra quotes
             value = value.strip().replace("'", "")
 
+
             # Process value based on type (date, timestamp, integer, or string)
             processed_value = process_value(value, field_name)
             update_values.append(processed_value)
@@ -292,13 +293,11 @@ def format_timestamp(value):
 def is_valid_date(value, field_name):
     # Check if the value matches a valid date format (YYYY-MM-DD)
     # You can modify this check to use a more complex field-based validation if needed
-    if 'date' in field_name.lower():
-        try:
-            datetime.strptime(value, '%Y-%m-%d')
-            return True
-        except ValueError:
-            return False
-    return False
+    try:
+        datetime.strptime(value, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
 
 
 def is_valid_timestamp(value):
